@@ -1,8 +1,6 @@
-import fs from "fs";
 import readline from "readline";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { config } from "dotenv";
-import { DectectLanguage , ReadFileData } from "./hooks";
 
 config({
   path: ".env",
@@ -14,7 +12,7 @@ const genAIKey = new GoogleGenerativeAI(process.env.GEMINI_KEY as string);
 function getUserInput(prompt: string): Promise<string> {
   const rl = readline.createInterface({
     input: process.stdin,
-    output: process.stdout
+    output: process.stdout,
   });
 
   return new Promise((resolve) => {
@@ -25,17 +23,6 @@ function getUserInput(prompt: string): Promise<string> {
   });
 }
 
-// Function to read file content
-async function readFile(filePath: string): Promise<string> {
-  try {
-    const data = await fs.readFileSync(filePath, "utf8");
-    return data;
-  } catch (error) {
-    throw new Error(`Error reading file at path ${filePath}: ${error}`);
-  }
-}
-
-// Function to generate content
 async function main(genAI: GoogleGenerativeAI, prompt: string) {
   const maxRetries = 2;
   let attempts = 0;
@@ -52,8 +39,10 @@ async function main(genAI: GoogleGenerativeAI, prompt: string) {
       if (error instanceof Error) {
         attempts++;
         const delay = Math.pow(2, attempts) * 1000; // Exponential backoff
-        console.log(`Rate limit exceeded. Retrying in ${delay / 1000} seconds...`);
-        await new Promise(res => setTimeout(res, delay));
+        console.log(
+          `Rate limit exceeded. Retrying in ${delay / 1000} seconds...`
+        );
+        await new Promise((res) => setTimeout(res, delay));
       } else {
         throw error;
       }
@@ -63,56 +52,27 @@ async function main(genAI: GoogleGenerativeAI, prompt: string) {
   if (success) {
     console.log(resultText);
   } else {
-    console.error('Failed to complete request after several retries.');
+    console.error("Failed to complete request after several retries.");
   }
 }
 
-// Command-line loop
 (async () => {
   while (true) {
-    const userInput = await getUserInput(
-      "Enter a prompt (or type 'exit' to quit, 'help' for commands): "
-    );
+    try {
+      const userInput = await getUserInput("Ask Me Anything : ");
 
-    if (userInput.toLowerCase() === "exit") {
-      break;
-    } else if (userInput.toLowerCase() === "help") {
-      console.log("Available commands:");
-      console.log("  - 'exit': Quit the application");
-      console.log("  - 'help': Display this help message");
-      console.log("  - '<file_path>': Process the file at the specified path");
-    } else {
-      try {
-        const parts = userInput.split(" ");
-        const command = parts[0].toLowerCase();
+      // Exit condition for the loop
+      if (userInput.toLowerCase() === "exit") {
+        console.log("Exiting...");
+        break;
+      }
 
-        if (command === "") {
-          if (parts.length < 2) {
-            console.log("Please provide a file path after 'explain'.");
-            continue;
-          }
-          const filePath = parts[1];
-          const language = DectectLanguage(filePath);
-          const fileContent = await readFile(filePath);
-
-          // Construct the prompt for explanation
-          const prompt = `Explain the following ${language} code snippet:\n${fileContent}`;
-          await main(genAIKey, prompt);
-        } else {
-          const filePath = userInput;
-          const language = DectectLanguage(filePath);
-          const fileContent = await readFile(filePath);
-
-          // Construct the prompt based on the file content
-          const prompt = `${language} ${fileContent}`;
-          await main(genAIKey, prompt);
-        }
-      } catch (error) {
-        if (error instanceof Error) {
-          console.error(`Something Went Wrong: ${error.message}`);
-        } else {
-          console.error("Unknown error occurred while processing the request.");
-        }
+      await main(genAIKey, userInput);
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error(`Something Went Wrong: ${error.message}`);
+      } else {
+        console.error("Unknown error occurred while processing the request.");
       }
     }
   }
